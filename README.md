@@ -1,3 +1,5 @@
+uses app_name ENV variable, can be changed in Constants
+
 export TEST_DATABASE_URL=postgres://jg:888888@localhost/conjur
 rerun --no-notify 'bundle exec thin start'
 
