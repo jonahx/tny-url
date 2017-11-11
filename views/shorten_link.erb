@@ -1,0 +1,233 @@
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css?family=Cutive+Mono" rel="stylesheet">
+<style type="text/css">
+
+/* simple CSS reset */
+html { box-sizing: border-box; }
+html, body, ul, ol, li, form, fieldset, legend { margin: 0; padding: 0; }
+h1, h2, h3, h4, h5, h6, p { margin-top: 0; }
+
+body {
+    background: black;
+    color: lightgreen;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    font-family: 'Cutive Mono', monospace;
+    height: 100%;
+}
+h1 { text-align: center; }
+
+input:focus {outline: none; }
+input, button {
+    background: black;
+    border: 1px solid lightgreen;
+    border-radius: 5px 0 0 5px;
+    color: lightgreen;
+    display: inline-block;
+    font-size: 22px;
+    margin: 0;
+    padding: 10px;
+    width: 65%;
+}
+#copy-button {
+  background: lightgreen;
+  border-radius: 0 5px 5px 0;
+  display: none;
+  color: black;
+  font-weight: bold;
+  width: 35%;
+}
+#copy-button-text {
+  opacity: 1;
+  position: relative;
+  top: 0;
+  transition: all 1s ease-in-out;
+  white-space: nowrap;
+}
+#copy-button-text.fade-out {
+  opacity: 0;
+  top: -30px;
+}
+    
+.short-url-cont {
+  height: 50px;
+  opacity: 0;
+  padding: 0;
+  position: relative;
+  top: 100px;
+  transition: all 0.5s ease-in;
+  width: 70%;
+}
+.short-url-cont.visible { opacity: 1; top: 0; }
+@media screen and (max-width: 730px) {
+  .short-url-cont { width: 90%; }
+}
+@media screen and (max-width: 560px) {
+  input, button {
+    display: block;
+    width: 100%;
+  }
+  input { border-radius: 5px 5px 0 0; }
+  button { border-radius: 0 0 5px 5px; }
+}
+
+.error-message {
+  color: red;
+  font-size: 28px;
+  margin-bottom: 30px;
+  text-align: center;
+  width: 90%;
+}
+
+</style>
+</head>
+<body>
+
+<div id="error-message" class="error-message">
+  <%= defined?(error_message) ? error_message : '' %>
+</div> 
+
+<h1>Paste to shorten (magically)</h1>
+
+<div class="short-url-cont">
+  <!-- these must be run together to avoid a space -->
+  <input id="url" maxlength="2000" type="text/css"><button id="copy-button" onclick="copyShortUrl()"><span id="copy-button-text">Copy Short URL</span></button>
+</div>
+
+<script>
+
+////////////////////////////////////////////
+//                 MAIN
+////////////////////////////////////////////
+
+// kick off the UI by listening for pastes
+//
+// updates.keepFocusOnUrl() also kicks off immediately
+// See note below definition of updates.
+document.addEventListener('paste', shortenClipboardUrl)
+
+////////////////////////////////////////////
+//            ATOMIC DOM UPDATES
+// (All mutations contained in "updates")
+////////////////////////////////////////////
+
+const $ = document.querySelector.bind(document)
+
+const updates = {
+  urlValue: val => $('#url').value = val,
+  showUrl: () => $('.short-url-cont').classList.add('visible'),
+  hideUrl: () => $('.short-url-cont').classList.remove('visible'),
+  selectUrl: () => $('#url').select(),
+  deselectUrl: () => deselectInput($('#url')),
+  copyUrlToClipboard: () => copyToClipboard($('#url')),
+  keepFocusOnUrl: () => keepFocusOn($('#url')),
+
+  errorMessage: msg => $('#error-message').innerText = msg,
+
+  copyBtnText: text => $('#copy-button-text').innerText = text,
+  addCopyBtnFade: () => $('#copy-button-text').classList.add('fade-out'),
+  removeCopyBtnFade: () => $('#copy-button-text').classList.remove('fade-out'),
+
+  disableCopyBtn: () => $('#copy-button').style.display = 'none',
+  enableCopyBtn: () => $('#copy-button').style.display = 'inline-block'
+}
+
+// Because safari has a bug on the document level paste event
+// https://bugs.webkit.org/show_bug.cgi?id=75891
+updates.keepFocusOnUrl()
+
+const api = {
+  shorten: fullUrl => postTo('/api/shortened-urls', {full_url: fullUrl})
+    .then(resp => {
+      if (resp.status === 'success') return resp.data
+      else throw resp.message
+    })
+    // client code provides catch
+}
+
+////////////////////////////////////////////
+//         HIGH LEVEL USER ACTIONS
+////////////////////////////////////////////
+
+function shortenClipboardUrl(pasteEvent) {
+
+  const fullUrl = clipboardContents(pasteEvent)
+
+  // reset url / copy button
+  updates.copyBtnText('Copy Short URL')
+
+  api.shorten(fullUrl)
+    .then( ({shortUrl}) => {
+      updates.errorMessage('')
+      updates.urlValue(shortUrl)
+      updates.enableCopyBtn()
+      updates.showUrl()
+      updates.selectUrl()
+    })
+    .catch(err => {
+      updates.errorMessage(err)
+      updates.hideUrl()
+       // prevent clicks on invisible button after fade away
+      setTimeout(updates.disableCopyBtn, 500)
+    })
+}
+
+function copyShortUrl() {
+
+  if (!updates.copyUrlToClipboard())
+    updates.errorMessage("Sorry, the copy failed. Try a manual copy instead")
+
+  updates.copyBtnText('Copied!')
+  updates.deselectUrl()
+
+  setTimeout(updates.addCopyBtnFade, 500)
+  setTimeout(() => {
+    updates.copyBtnText('Copy Again')
+    updates.removeCopyBtnFade() // avoid delay when we "Copy Again"
+  }, 1500) // first transition will be over after 1s + 500
+}
+
+////////////////////
+// Utility Functions
+////////////////////
+
+function copyToClipboard(input) {
+  input.select()
+  try { return document.execCommand('copy') }
+  catch (err) { return false }
+}
+
+function clipboardContents(pasteEvt) {
+  return (pasteEvt.clipboardData || window.clipboardData).getData('Text')
+}
+
+function postTo(url, payload) {
+  return fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+    body: JSON.stringify(payload)
+  }).then(responseStream => {
+    return responseStream.json()
+  })
+}
+
+function deselectInput(input) {
+  input.selectionStart = -1
+  input.selectionEnd = -1
+}
+
+function keepFocusOn(elm) {
+  // Note: setTimeout(elm.focus, 0) will NOT work 
+  const focus = () => setTimeout(() => elm.focus(), 0)
+  elm.addEventListener('blur', focus)
+  focus()
+  return focus // in case clients want to remove it
+}
+
+</script>
+</body>
+</html>
