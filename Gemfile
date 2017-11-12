@@ -11,4 +11,6 @@ gem 'values'
 
 group :development do
   gem 'rerun'
+  gem 'minitest'
+  gem 'rack-test'
 end

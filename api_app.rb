@@ -1,4 +1,5 @@
 require 'sinatra'
+require 'rack/contrib'
 require_relative './constants'
 require_relative './repo'
 require_relative './domain/requested_shortening'
@@ -21,9 +22,10 @@ class ApiApp < Sinatra::Base
         RequestedShortening.new(params[:full_url], params[:short_name])
       )
       success_json({
-        shortUrl: full_path(saved.short_name),
         fullUrl: saved.full_url,
-        deleteUrl: full_path("delete/" + saved.owners_secret)
+        shortUrl: full_path(saved.short_name),
+        shortName: saved.short_name,
+        ownersSecret: saved.owners_secret
       })
     rescue InvalidUrl, InvalidShortName, ShortNameUnavailable => e
       client_error(400, e)
