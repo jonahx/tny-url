@@ -6,6 +6,7 @@ It's on heroku's free tier, so your initial request may have a 5 or so second de
 
 The application has two parts: an API and a client frontend which uses that API.  They are separate sinatra apps, both automatically deployed to appropriate urls via `Rack::URLMap` inside `config.ru`:
 
+I should note that the frontend UX is not what I'd do if there were a "real" URL shortener -- I've done enough usability testing to know a substantial number of people would be confused.  But I thought I'd have a bit of fun with it.
 
 ```ruby
 run Rack::URLMap.new(
